@@ -22,18 +22,8 @@ sudo apt full-upgrade -y
 
 Install the following packages:
 ```
-sudo apt install -y \
-    build-essential \
-    git \
-    libssl-dev \
-    libpam0g-dev \
-    libapr1-dev \
-    libaprutil1-dev \
-    libmysqlclient21-dev \
-    mysql-server \
-    perl \
-    perl-modules \
-    zip
+sudo apt install build-essential git libssl-dev libpam0g-dev libapr1-dev libaprutil1-dev libmysqlclient21-dev mysql-server perl perl-modules zip -y
+
 ```
 
 ### Step 3: Install Apache

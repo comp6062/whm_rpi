@@ -1,94 +1,80 @@
-**Raspberry Pi 5 (aarch64) - Installing WHM Manager on Debian Bullseye-based OS**
+# Raspberry Pi 5 Web Hosting Server Setup (AArch64/ARM64)
 
-### Prerequisites
+This guide details how to set up your Raspberry Pi 5 as a web hosting server, complete with a web UI control panel and name server assignment.
 
-* Raspberry Pi 5 with a Debian Bullseye-based OS installed (aarch64/arm64 architecture)
-* Internet connection
-* A static IP address or a dynamic DNS service (recommended)
+## Prerequisites
+- Raspberry Pi 5
+- MicroSD card (32GB+ recommended)
+- USB Ethernet adapter (optional but recommended for dual network interfaces)
+- AArch64/ARM64 Raspberry Pi OS (Debian Bullseye)
+- Static public IP (recommended) or dynamic DNS (DDNS)
+- Domain name(s) registered
 
-### Step 1: Update the package list and upgrade the system
+## Step 1: Install Raspberry Pi OS
+1. Download the latest **Raspberry Pi OS (64-bit, Lite version)** from the official Raspberry Pi website.
+2. Flash the OS to a MicroSD card using **Raspberry Pi Imager** or **Balena Etcher**.
+3. After flashing, create an empty file named `ssh` in the boot partition to enable SSH.
+4. Insert the MicroSD card into the Raspberry Pi and boot it up.
+5. Connect via SSH:
+   ```bash
+   ssh pi@<raspberry_pi_ip>
+   ```
+6. Update the system:
+   ```bash
+   sudo apt update && sudo apt upgrade -y
+   ```
 
-Update the package list:
-```
-sudo apt update -y
-```
-
-Upgrade the system:
-```
-sudo apt full-upgrade -y
-```
-
-### Step 2: Install required packages
-
-Install the following packages:
-```
-sudo apt install build-essential git libssl-dev libpam0g-dev libapr1-dev libaprutil1-dev libmysqlclient21-dev mysql-server perl perl-modules zip -y
-
-```
-
-### Step 3: Install Apache
-
-Install Apache:
-```
-sudo apt install -y apache2
+## Step 2: Install Required Software
+### Install Web Server (Nginx + PHP + MariaDB)
+```bash
+sudo apt install -y nginx php-fpm php-mysql mariadb-server unzip curl
 ```
 
-### Step 4: Install MySQL
-
-Install MySQL:
-```
-sudo apt install -y mysql-server
-```
-
-### Step 5: Configure MySQL
-
-Configure MySQL:
-```
+### Secure MariaDB
+```bash
 sudo mysql_secure_installation
 ```
+Follow the prompts to secure the database.
 
-Follow the prompts to set a root password, remove anonymous users, disallow root login remotely, and reload privilege tables.
-
-### Step 6: Install WHM Manager
-
-Install WHM Manager:
+## Step 3: Install a Web Hosting Control Panel
+### Install HestiaCP (Recommended)
+```bash
+curl -O https://raw.githubusercontent.com/hestiacp/hestiacp/release/install/hst-install.sh
+sudo bash hst-install.sh
 ```
-sudo apt install -y whm-manager
-```
+Follow the prompts to configure the panel.
 
-### Step 7: Configure WHM Manager
+## Step 4: Configure Name Servers
+1. Register a domain and set up Glue records at your domain registrar.
+2. Install and configure Bind9:
+   ```bash
+   sudo apt install -y bind9
+   ```
+3. Configure Bind9 to act as an authoritative name server for your domains.
+4. Set up A and NS records in the Bind9 zone files.
 
-Configure WHM Manager:
-```
-sudo whm-manager --config /etc/whm-manager.conf
-```
+## Step 5: Add a Website
+1. Log into HestiaCP at `https://<your_pi_ip>:8083`
+2. Create a new user (optional) and add a new domain.
+3. Upload website files to `/home/user/web/domain.tld/public_html/`
 
-Follow the prompts to set the administrator password and configure other settings.
-
-### Step 8: Start and enable services
-
-Start and enable Apache, MySQL, and WHM Manager:
-```
-sudo systemctl start apache2
-sudo systemctl enable apache2
-
-sudo systemctl start mysql
-sudo systemctl enable mysql
-
-sudo systemctl start whm-manager
-sudo systemctl enable whm-manager
+## Step 6: Enable SSL with Let's Encrypt
+```bash
+sudo apt install -y certbot python3-certbot-nginx
+sudo certbot --nginx -d yourdomain.com -d www.yourdomain.com
 ```
 
-### Step 9: Configure firewall (optional)
+## Step 7: Test & Deploy
+- Ensure web traffic reaches your Raspberry Pi (port forwarding may be needed).
+- Verify DNS propagation using:
+  ```bash
+  dig yourdomain.com @8.8.8.8
+  ```
+- Monitor logs with:
+  ```bash
+  sudo journalctl -u nginx -f
+  ```
 
-Configure the firewall to allow incoming connections on port 2087 (WHM Manager):
-```
-sudo ufw allow 2087
-```
-
-### Step 10: Access WHM Manager
-
-Access WHM Manager by visiting `http://your-server-ip:2087` in your web browser.
-
-That's it! You should now have a fully functional personal web server running WHM Manager on your Raspberry Pi 5.
+## Conclusion
+Your Raspberry Pi 5 is now a fully functional web hosting server with a control panel and custom name servers. 🎉
 

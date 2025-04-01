@@ -1,6 +1,7 @@
 # Raspberry Pi 5 Web Hosting Server Setup (AArch64/ARM64)
 
-This guide details how to set up your Raspberry Pi 5 as a web hosting server, complete with a web UI control panel and name server assignment.
+## Overview
+This guide provides a step-by-step process to set up your Raspberry Pi 5 as a web hosting server with HestiaCP, complete with a web UI control panel, name server assignment, and domain management.
 
 ## Prerequisites
 - Raspberry Pi 5
@@ -9,6 +10,7 @@ This guide details how to set up your Raspberry Pi 5 as a web hosting server, co
 - AArch64/ARM64 Raspberry Pi OS (Debian Bullseye)
 - Static public IP (recommended) or dynamic DNS (DDNS)
 - Domain name(s) registered
+- SSH access enabled
 
 ## Step 1: Install Raspberry Pi OS
 1. Download the latest **Raspberry Pi OS (64-bit, Lite version)** from the official Raspberry Pi website.
@@ -24,47 +26,106 @@ This guide details how to set up your Raspberry Pi 5 as a web hosting server, co
    sudo apt update && sudo apt upgrade -y
    ```
 
-## Step 2: Install Required Software
-### Install Web Server (Nginx + PHP + MariaDB)
+## Step 2: Install Required Software & Dependencies
+### Install Web Server Stack
 ```bash
-sudo apt install -y nginx php-fpm php-mysql mariadb-server unzip curl
+sudo apt install -y nginx php-fpm php-mysql mariadb-server unzip curl bind9 bind9-utils ufw
 ```
 
 ### Secure MariaDB
 ```bash
 sudo mysql_secure_installation
 ```
-Follow the prompts to secure the database.
+Follow the prompts to secure the database and create a root password.
 
-## Step 3: Install a Web Hosting Control Panel
-### Install HestiaCP (Recommended)
+## Step 3: Install and Configure HestiaCP
+### Install HestiaCP
 ```bash
 curl -O https://raw.githubusercontent.com/hestiacp/hestiacp/release/install/hst-install.sh
 sudo bash hst-install.sh
 ```
-Follow the prompts to configure the panel.
+Follow the prompts to configure the panel. Choose options suitable for your use case (Nginx + PHP-FPM recommended).
 
-## Step 4: Configure Name Servers
-1. Register a domain and set up Glue records at your domain registrar.
-2. Install and configure Bind9:
-   ```bash
-   sudo apt install -y bind9
+### Firewall Configuration
+Enable UFW (Uncomplicated Firewall) and allow necessary ports:
+```bash
+sudo ufw allow 22/tcp   # SSH
+sudo ufw allow 80/tcp   # HTTP
+sudo ufw allow 443/tcp  # HTTPS
+sudo ufw allow 8083/tcp # HestiaCP Web UI
+sudo ufw enable
+```
+
+### Access HestiaCP Web UI
+1. Open your browser and navigate to:
    ```
-3. Configure Bind9 to act as an authoritative name server for your domains.
-4. Set up A and NS records in the Bind9 zone files.
+   https://<your_pi_ip>:8083
+   ```
+2. Log in with the default username `admin` and the password provided after installation.
 
-## Step 5: Add a Website
-1. Log into HestiaCP at `https://<your_pi_ip>:8083`
-2. Create a new user (optional) and add a new domain.
-3. Upload website files to `/home/user/web/domain.tld/public_html/`
+### Add a New Domain in HestiaCP
+1. Go to the **Web** section in the control panel.
+2. Click **Add Domain** and enter your domain name.
+3. Enable **SSL and Let's Encrypt** if required.
+4. Click **Save** to apply the settings.
 
-## Step 6: Enable SSL with Let's Encrypt
+## Step 4: Configure Name Servers (Bind9)
+### Install Bind9 and Setup DNS Zones
+```bash
+sudo apt install -y bind9 bind9utils
+```
+
+Edit Bind9 configuration:
+```bash
+sudo nano /etc/bind/named.conf.local
+```
+Add the following zone configuration (replace `yourdomain.com` with your actual domain):
+```
+zone "yourdomain.com" {
+    type master;
+    file "/etc/bind/db.yourdomain";
+};
+```
+
+Create a DNS zone file:
+```bash
+sudo cp /etc/bind/db.local /etc/bind/db.yourdomain
+sudo nano /etc/bind/db.yourdomain
+```
+Modify it as follows:
+```
+;
+; BIND data file for yourdomain.com
+;
+$TTL    604800
+@       IN      SOA     ns1.yourdomain.com. admin.yourdomain.com. (
+                              2         ; Serial
+                         604800         ; Refresh
+                          86400         ; Retry
+                        2419200         ; Expire
+                         604800 )       ; Negative Cache TTL
+;
+@       IN      NS      ns1.yourdomain.com.
+@       IN      NS      ns2.yourdomain.com.
+ns1     IN      A       <your_pi_ip>
+ns2     IN      A       <your_pi_ip>
+@       IN      A       <your_pi_ip>
+www     IN      A       <your_pi_ip>
+```
+Save and exit.
+
+Restart Bind9:
+```bash
+sudo systemctl restart bind9
+```
+
+## Step 5: Enable SSL with Let's Encrypt
 ```bash
 sudo apt install -y certbot python3-certbot-nginx
 sudo certbot --nginx -d yourdomain.com -d www.yourdomain.com
 ```
 
-## Step 7: Test & Deploy
+## Step 6: Verify Setup and Deployment
 - Ensure web traffic reaches your Raspberry Pi (port forwarding may be needed).
 - Verify DNS propagation using:
   ```bash
@@ -76,5 +137,5 @@ sudo certbot --nginx -d yourdomain.com -d www.yourdomain.com
   ```
 
 ## Conclusion
-Your Raspberry Pi 5 is now a fully functional web hosting server with a control panel and custom name servers. 🎉
+Your Raspberry Pi 5 is now a fully functional web hosting server with a control panel, DNS management, and SSL encryption. 🎉
 

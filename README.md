@@ -1,141 +1,193 @@
-# Raspberry Pi 5 Web Hosting Server Setup (AArch64/ARM64)
+Certainly! Here’s the same guide, formatted for GitHub Markdown:
 
-## Overview
-This guide provides a step-by-step process to set up your Raspberry Pi 5 as a web hosting server with HestiaCP, complete with a web UI control panel, name server assignment, and domain management.
+```markdown
+# Web Hosting with Webmin on Raspberry Pi (aarch64)
+
+This guide will walk you through setting up a web hosting environment on a Raspberry Pi (with aarch64 architecture) using Webmin. We'll also cover setting up custom name servers to direct your domains to the Raspberry Pi.
 
 ## Prerequisites
-- Raspberry Pi 5
-- MicroSD card (32GB+ recommended)
-- USB Ethernet adapter (optional but recommended for dual network interfaces)
-- AArch64/ARM64 Raspberry Pi OS (Debian Bullseye)
-- Static public IP (recommended) or dynamic DNS (DDNS)
-- Domain name(s) registered
-- SSH access enabled
 
-## Step 1: Install Raspberry Pi OS
-1. Download the latest **Raspberry Pi OS (64-bit, Lite version)** from the official Raspberry Pi website.
-2. Flash the OS to a MicroSD card using **Raspberry Pi Imager** or **Balena Etcher**.
-3. After flashing, create an empty file named `ssh` in the boot partition to enable SSH.
-4. Insert the MicroSD card into the Raspberry Pi and boot it up.
-5. Connect via SSH:
-   ```bash
-   ssh pi@<raspberry_pi_ip>
-   ```
-6. Update the system:
-   ```bash
-   sudo apt update && sudo apt upgrade -y
-   ```
+- Raspberry Pi 3 or 4 (with aarch64 architecture)
+- Raspberry Pi OS installed
+- SSH access to your Raspberry Pi
+- A domain name (already purchased)
 
-## Step 2: Install Required Software & Dependencies
-### Install Web Server Stack
+## Step 1: Install Webmin
+
+### 1. Install required dependencies
+
+First, update your system packages and install the required dependencies:
+
 ```bash
-sudo apt install -y nginx php-fpm php-mysql mariadb-server unzip curl bind9 bind9-utils ufw
+sudo apt update
+sudo apt upgrade -y
+sudo apt install software-properties-common apt-transport-https wget -y
 ```
 
-### Secure MariaDB
-```bash
-sudo mysql_secure_installation
-```
-Follow the prompts to secure the database and create a root password.
+### 2. Add the Webmin repository
 
-## Step 3: Install and Configure HestiaCP
-### Install HestiaCP
-```bash
-curl -O https://raw.githubusercontent.com/hestiacp/hestiacp/release/install/hst-install.sh
-sudo bash hst-install.sh
-```
-Follow the prompts to configure the panel. Choose options suitable for your use case (Nginx + PHP-FPM recommended).
+Add the Webmin repository and GPG key to your system:
 
-### Firewall Configuration
-Enable UFW (Uncomplicated Firewall) and allow necessary ports:
 ```bash
-sudo ufw allow 22/tcp   # SSH
-sudo ufw allow 80/tcp   # HTTP
-sudo ufw allow 443/tcp  # HTTPS
-sudo ufw allow 8083/tcp # HestiaCP Web UI
+wget -qO - http://www.webmin.com/jcameron-key.asc | sudo tee /etc/apt/trusted.gpg.d/webmin.asc
+sudo add-apt-repository "deb https://download.webmin.com/download/repository sarge contrib"
+```
+
+### 3. Install Webmin
+
+Now, update your package list and install Webmin:
+
+```bash
+sudo apt update
+sudo apt install webmin -y
+```
+
+### 4. Open Webmin's port
+
+Webmin runs on port `10000` by default. Open this port in your firewall:
+
+```bash
+sudo ufw allow 10000/tcp
 sudo ufw enable
 ```
 
-### Access HestiaCP Web UI
-1. Open your browser and navigate to:
-   ```
-   https://<your_pi_ip>:8083
-   ```
-2. Log in with the default username `admin` and the password provided after installation.
+### 5. Access Webmin
 
-### Add a New Domain in HestiaCP
-1. Go to the **Web** section in the control panel.
-2. Click **Add Domain** and enter your domain name.
-3. Enable **SSL and Let's Encrypt** if required.
-4. Click **Save** to apply the settings.
+You can access Webmin by visiting:
 
-## Step 4: Configure Name Servers (Bind9)
-### Install Bind9 and Setup DNS Zones
-```bash
-sudo apt install -y bind9 bind9utils
+```
+https://<your-raspberry-pi-ip>:10000
 ```
 
-Edit Bind9 configuration:
+Log in with the root username and password of your Raspberry Pi.
+
+## Step 2: Install Apache, PHP, and MySQL
+
+Webmin can manage Apache, MySQL, and PHP with ease. Install these services:
+
+```bash
+sudo apt install apache2 php php-mysql mysql-server -y
+```
+
+Ensure the services are running:
+
+```bash
+sudo systemctl enable apache2 mysql
+sudo systemctl start apache2 mysql
+```
+
+## Step 3: Set Up Virtual Hosts for Your Domains
+
+### 1. Add a new Virtual Server in Webmin
+
+- In the Webmin dashboard, go to `Servers > Apache Webserver > Create a new virtual host`.
+- Fill in the domain name, document root (e.g., `/var/www/html/example.com`), and other necessary fields.
+
+### 2. Configure DNS Records
+
+You need to point your domain to your Raspberry Pi’s IP address. Log in to your domain registrar (e.g., GoDaddy, Namecheap, etc.) and create the following DNS records:
+
+- **A Record**: Point your domain (e.g., `example.com`) to your Raspberry Pi’s external IP address.
+- **CNAME Record**: If you need subdomains (e.g., `www.example.com`), set up CNAME records to point them to the root domain.
+
+If you're using a dynamic IP address, consider using a service like [DuckDNS](https://www.duckdns.org/) to keep your IP updated.
+
+## Step 4: Set Up Custom Name Servers
+
+To set up your own custom name servers (e.g., `ns1.example.com` and `ns2.example.com`), follow these steps:
+
+### 1. Set Up Bind9 (DNS Server)
+
+Install Bind9 to act as your DNS server:
+
+```bash
+sudo apt install bind9 bind9utils bind9-doc -y
+```
+
+### 2. Configure DNS Zones
+
+The main configuration file for Bind9 is located at `/etc/bind/named.conf.local`. Create a new zone for your domain:
+
 ```bash
 sudo nano /etc/bind/named.conf.local
 ```
-Add the following zone configuration (replace `yourdomain.com` with your actual domain):
-```
-zone "yourdomain.com" {
+
+Add the following configuration for your domain:
+
+```bash
+zone "example.com" {
     type master;
-    file "/etc/bind/db.yourdomain";
+    file "/etc/bind/db.example.com";
 };
 ```
 
-Create a DNS zone file:
-```bash
-sudo cp /etc/bind/db.local /etc/bind/db.yourdomain
-sudo nano /etc/bind/db.yourdomain
-```
-Modify it as follows:
-```
-;
-; BIND data file for yourdomain.com
-;
-$TTL    604800
-@       IN      SOA     ns1.yourdomain.com. admin.yourdomain.com. (
-                              2         ; Serial
-                         604800         ; Refresh
-                          86400         ; Retry
-                        2419200         ; Expire
-                         604800 )       ; Negative Cache TTL
-;
-@       IN      NS      ns1.yourdomain.com.
-@       IN      NS      ns2.yourdomain.com.
-ns1     IN      A       <your_pi_ip>
-ns2     IN      A       <your_pi_ip>
-@       IN      A       <your_pi_ip>
-www     IN      A       <your_pi_ip>
-```
-Save and exit.
+Now, create the zone file `/etc/bind/db.example.com`:
 
-Restart Bind9:
+```bash
+sudo nano /etc/bind/db.example.com
+```
+
+Populate it with the following:
+
+```bash
+$TTL 86400
+@    IN    SOA   ns1.example.com. admin.example.com. (
+                2025040201 ; Serial
+                28800      ; Refresh
+                7200       ; Retry
+                1209600    ; Expire
+                86400 )    ; Minimum TTL
+;
+@    IN    NS    ns1.example.com.
+@    IN    NS    ns2.example.com.
+;
+@    IN    A     <your-raspberry-pi-ip>
+ns1  IN    A     <your-raspberry-pi-ip>
+ns2  IN    A     <your-raspberry-pi-ip>
+www  IN    CNAME example.com.
+```
+
+Replace `<your-raspberry-pi-ip>` with your Raspberry Pi’s IP address.
+
+### 3. Restart Bind9
+
+Restart the Bind9 service to apply changes:
+
 ```bash
 sudo systemctl restart bind9
 ```
 
-## Step 5: Enable SSL with Let's Encrypt
+### 4. Configure Your Domain Registrar
+
+Log in to your domain registrar and set the custom nameservers (`ns1.example.com` and `ns2.example.com`) for your domain. This will ensure that the domain resolves to your Raspberry Pi’s IP address.
+
+## Step 5: Test Your Setup
+
+### 1. Test the domain resolution
+
+After DNS propagation (which may take a few hours), test if your domain is resolving correctly:
+
 ```bash
-sudo apt install -y certbot python3-certbot-nginx
-sudo certbot --nginx -d yourdomain.com -d www.yourdomain.com
+nslookup example.com
 ```
 
-## Step 6: Verify Setup and Deployment
-- Ensure web traffic reaches your Raspberry Pi (port forwarding may be needed).
-- Verify DNS propagation using:
-  ```bash
-  dig yourdomain.com @8.8.8.8
-  ```
-- Monitor logs with:
-  ```bash
-  sudo journalctl -u nginx -f
-  ```
+The IP should return your Raspberry Pi’s IP address.
 
-## Conclusion
-Your Raspberry Pi 5 is now a fully functional web hosting server with a control panel, DNS management, and SSL encryption. 🎉
+### 2. Test the website
 
+In a browser, visit `http://example.com` to see if your website is live.
+
+## Summary
+
+- **Webmin** is a user-friendly tool for managing your Raspberry Pi server, including Apache, MySQL, and DNS.
+- **Bind9** can be configured to manage custom name servers for your domain.
+- You’ll need to configure both DNS records at your registrar and on your Raspberry Pi to ensure that your domains resolve correctly.
+
+By following these steps, you’ll have a fully functioning web hosting setup with custom name servers running on your Raspberry Pi.
+```
+
+### Key Points:
+- Replace the `<your-raspberry-pi-ip>` placeholder with your actual Raspberry Pi IP address in the configuration files.
+- The file paths and configuration details for Apache, Bind9, and Webmin are set up for common default installations; you may need to adjust them depending on your specific setup.
+  
+This Markdown format is compatible with GitHub, and you can copy it directly into a `.md` file for use on GitHub or a similar platform.
